@@ -6,8 +6,9 @@
 # used as a plain job container, a standalone self-hosted runner, or an
 # actions-runner-controller (ARC) scale-set runner.
 #
-# Toolchain: Node.js 22 + 24 (in the hosted tool cache), seven .NET SDKs
-# side by side, PostgreSQL 16 (stopped by default), docker CLI + buildx + compose.
+# Toolchain: Node.js 22 + 24 (in the hosted tool cache), the four .NET 10 SDK
+# bands side by side, PostgreSQL 18 (stopped by default), the Railway CLI, and
+# docker CLI + buildx + compose.
 
 ARG UBUNTU_VERSION=24.04
 
@@ -92,7 +93,7 @@ FROM ubuntu:${UBUNTU_VERSION}
 ARG TARGETARCH
 # Space-separated so a thinner image is a --build-arg away.
 ARG NODE_VERSIONS="22.23.4 24.22.1"
-ARG DOTNET_SDK_VERSIONS="9.0.121 9.0.205 9.0.318 10.0.112 10.0.204 10.0.303 10.0.401"
+ARG DOTNET_SDK_VERSIONS="10.0.112 10.0.204 10.0.303 10.0.401"
 ARG POSTGRES_MAJOR=18
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -280,7 +281,7 @@ COPY verify.sh /usr/local/bin/verify-image
 RUN chmod 0755 /usr/local/bin/entrypoint.sh /usr/local/bin/verify-image
 
 LABEL org.opencontainers.image.title="FollyFactory runner image (Ubuntu 24.04)" \
-      org.opencontainers.image.description="Self-hosted/ARC Actions runner with Node.js 22+24, seven .NET SDKs, PostgreSQL 18 and the Railway CLI" \
+      org.opencontainers.image.description="Self-hosted/ARC Actions runner with Node.js 22+24, four .NET 10 SDKs, PostgreSQL 18 and the Railway CLI" \
       org.opencontainers.image.source="https://github.com/FollyFactory/runner-images" \
       org.opencontainers.image.licenses="MIT"
 

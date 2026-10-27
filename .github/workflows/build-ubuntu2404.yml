@@ -26,6 +26,11 @@ on:
     - cron: "0 4 * * 1"
   workflow_dispatch:
 
+# A second push shouldn't race the first for the `latest` manifest.
+concurrency:
+  group: build-ubuntu2404-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   IMAGE: ghcr.io/follyfactory/runner-images/ubuntu2404
 

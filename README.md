@@ -49,10 +49,11 @@ Ubuntu 24.04, with the full list in [docs/Ubuntu2404-Readme.md](docs/Ubuntu2404-
   one is on `PATH` via `/opt/node`, which is also where `npm install --global`
   puts binaries - how `railway-deploy` gets its pinned `@railway/cli` onto
   `PATH`.
-- **.NET SDKs 9.0.121, 9.0.205, 9.0.318, 10.0.112, 10.0.204, 10.0.303 and
-  10.0.401**, side by side in `/usr/share/dotnet`. A repo's `global.json` picks
-  one; `actions/setup-dotnet` finds the band it asks for already installed, and
-  can still add another because the runner user owns that directory.
+- **.NET SDKs 10.0.112, 10.0.204, 10.0.303 and 10.0.401**, one per feature
+  band, side by side in `/usr/share/dotnet`. A repo's `global.json` picks one;
+  `actions/setup-dotnet` finds the band it asks for already installed, and can
+  still add another - including a 9.0.x, at the cost of a download - because the
+  runner user owns that directory.
 - **PostgreSQL 18**, server and client, installed but **stopped** — the same
   deal as the hosted images. Start it from a job (see below).
 - **docker CLI, buildx and compose**, but no daemon: jobs talk to a
@@ -72,8 +73,11 @@ docker build --build-arg DOTNET_SDK_VERSIONS="10.0.401" \
   -t runner:slim images/ubuntu2404
 ```
 
-It is a big image — seven .NET SDKs is most of it. Keep a warm image cache on
-the nodes that run it, or build a slimmer variant per repo as above.
+It is still a big image — the four SDKs are over half of it. Keep a warm image
+cache on the nodes that run it, or build a slimmer variant per repo as above. A
+repo that needs .NET 9 can have its own image the same way
+(`DOTNET_SDK_VERSIONS="9.0.318 10.0.401"`) rather than putting those bands back
+here for everyone.
 
 ## Using PostgreSQL
 

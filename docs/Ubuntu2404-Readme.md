@@ -38,13 +38,14 @@ All in `/usr/share/dotnet` (`DOTNET_ROOT`), side by side, owned by `runner` so
 
 | Band | SDK | Runtime |
 |------|-----|---------|
-| 9.0.1xx | 9.0.121 | 9.0.20 |
-| 9.0.2xx | 9.0.205 | 9.0.6 |
-| 9.0.3xx | 9.0.318 | 9.0.20 |
 | 10.0.1xx | 10.0.112 | 10.0.12 |
 | 10.0.2xx | 10.0.204 | 10.0.8 |
 | 10.0.3xx | 10.0.303 | 10.0.11 |
 | 10.0.4xx | 10.0.401 | 10.0.12 |
+
+No .NET 9 SDK ships here: everything these runners build targets .NET 10. A
+`global.json` pinning a 9.0.x band still works - `actions/setup-dotnet` installs
+it into `DOTNET_ROOT` at job time - it just costs a download.
 
 `DOTNET_CLI_TELEMETRY_OPTOUT=1`, `DOTNET_NOLOGO=1`,
 `DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1` and `NUGET_XMLDOC_MODE=skip` are set.
@@ -138,7 +139,7 @@ runner, and where it comes from:
 
 | Workflow / action | Needs | Provided by |
 |-------------------|-------|-------------|
-| `dotnet-build-test` | `docker run`/`inspect` for `postgres:18`, `psql`, `actions/setup-dotnet` + `global.json`, `dotnet restore`/`format`/`build`/`test`, `dotnet tool restore` → `dotnet ef`, efbundle execution | docker CLI (+ dind), PostgreSQL 18 client, the seven SDKs |
+| `dotnet-build-test` | `docker run`/`inspect` for `postgres:18`, `psql`, `actions/setup-dotnet` + `global.json`, `dotnet restore`/`format`/`build`/`test`, `dotnet tool restore` → `dotnet ef`, efbundle execution | docker CLI (+ dind), PostgreSQL 18 client, the four .NET 10 SDKs |
 | `node-build-test` | `actions/setup-node` with `.nvmrc`, `npm ci` and the lint/test/build scripts | Node 22 + 24 in the tool cache |
 | `container-release`, `container-rollback` | `docker login`/`build`/`push`/`manifest inspect`, `docker buildx imagetools`, `git tag`, `gh api`, `gh release` | docker CLI + buildx, git, gh |
 | `dotnet-api-release`, `dotnet-api-rollback` | the above plus `dotnet ef migrations bundle` and running the bundle | SDKs, docker CLI, gh |
