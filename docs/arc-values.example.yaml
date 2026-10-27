@@ -72,15 +72,22 @@ template:
         # To keep both, use:
         #   command: ["/usr/local/bin/entrypoint.sh", "/home/runner/run.sh"]
 
-        # Starting points, not measurements - tune them against a real build.
-        # A .NET restore/build/test with a Postgres container alongside wants
-        # more than the ARC defaults assume, and `_work` plus whatever dind
-        # pulls lands on the node's ephemeral storage.
+        # Requests are what the scheduler must find on one node, for every
+        # runner pod at once. Set them above what a node can spare and the pods
+        # sit Pending forever - no pull, no error, no job. These are deliberately
+        # modest; raise them only against what
+        #   kubectl get nodes -o custom-columns=\
+        #     NAME:.metadata.name,CPU:.status.allocatable.cpu,\
+        #     MEM:.status.allocatable.memory,EPH:.status.allocatable.ephemeral-storage
+        # says a node actually has, remembering minRunners pods are always up.
+        #
+        # No ephemeral-storage request on purpose: allocatable ephemeral storage
+        # is often far smaller than the disk, and it is the quietest way to make
+        # a pod unschedulable. Add one only if you hit eviction under disk
+        # pressure, and size it from that node's allocatable figure.
         resources:
           requests:
-            cpu: "2"
-            memory: 4Gi
-            ephemeral-storage: 20Gi
+            cpu: 500m
+            memory: 2Gi
           limits:
-            memory: 8Gi
-            ephemeral-storage: 40Gi
+            memory: 6Gi
