@@ -25,6 +25,11 @@ each architecture on a native hosted runner - `ubuntu-24.04` and
 every change to the image plus once a week for base-image and apt security
 updates.
 
+`latest` is re-pointed by every published build and only ever from `main`, and
+the run fails if it does not read back as the build that just finished - so a
+node pulling `latest` gets the newest green build, not whatever a side-branch
+dispatch last touched.
+
 ## Making the package public
 
 The first push creates the package **private**, whatever the repo's visibility:

@@ -120,6 +120,10 @@ jobs:
       packages: write
     env:
       TAG: ${{ needs.prepare.outputs.tag }}
+      # Only the default branch moves `latest`. A workflow_dispatch from a side
+      # branch still publishes its own dated tag, but must not drag `latest`
+      # backwards onto code that never landed on main.
+      MOVE_LATEST: ${{ github.ref == 'refs/heads/main' }}
     steps:
       - name: Log in to ghcr.io
         env:
@@ -130,9 +134,49 @@ jobs:
       # runner pulls the right architecture from either tag.
       - name: Create the manifest lists
         run: |
-          for alias in "$TAG" latest; do
+          aliases="$TAG"
+          if [ "$MOVE_LATEST" = true ]; then
+            aliases="$aliases latest"
+          else
+            echo "::notice::$GITHUB_REF is not main, so latest stays where it is"
+          fi
+          for alias in $aliases; do
             docker buildx imagetools create --tag "$IMAGE:$alias" \
               "$IMAGE:$TAG-amd64" "$IMAGE:$TAG-arm64"
           done
-          docker buildx imagetools inspect "$IMAGE:$TAG"
-          echo "### Published \`$IMAGE:$TAG\` and \`$IMAGE:latest\`" >> "$GITHUB_STEP_SUMMARY"
+
+      # `imagetools create` is not atomic across tags, and a tag can be moved by
+      # hand or by a run that overlapped this one. Read both back and fail if
+      # latest is not this build, rather than leaving a stale one to be found by
+      # whichever runner pulls next.
+      - name: Check latest points at this build
+        run: |
+          # Without pipefail a registry error would reach jq as empty input and
+          # read as a digest of "", which would compare equal to itself.
+          set -euo pipefail
+          digest_of() {
+            docker buildx imagetools inspect "$1" --format '{{ json .Manifest }}' | jq -er .digest
+          }
+          built=$(digest_of "$IMAGE:$TAG")
+          echo "$IMAGE:$TAG -> $built"
+          {
+            echo "### Published \`$IMAGE:$TAG\`"
+            echo
+            echo "| Tag | Digest |"
+            echo "| --- | ------ |"
+            echo "| \`$TAG\` | \`$built\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$MOVE_LATEST" != true ]; then
+            echo "latest deliberately left alone" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          latest=$(digest_of "$IMAGE:latest")
+          echo "$IMAGE:latest -> $latest"
+          echo "| \`latest\` | \`$latest\` |" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$latest" != "$built" ]; then
+            echo "::error::latest is $latest, not this build ($built)"
+            exit 1
+          fi
+          docker buildx imagetools inspect "$IMAGE:latest"
