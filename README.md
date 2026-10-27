@@ -118,7 +118,7 @@ A complete, annotated file is at
 
 ```yaml
 # values.yaml for gha-runner-scale-set
-runnerScaleSetName: cur10-runner   # what `runs-on:` names
+runnerScaleSetName: mortis-farm-cur10   # `runs-on:` names this, exactly
 minRunners: 2
 maxRunners: 4
 

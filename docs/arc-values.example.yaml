@@ -1,6 +1,6 @@
 # gha-runner-scale-set values for ghcr.io/follyfactory/runner-images/ubuntu2404.
 #
-#   helm upgrade --install cur10-runner \
+#   helm upgrade --install mortis-farm-cur10 \
 #     oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set \
 #     --namespace arc-runners --create-namespace \
 #     --values arc-values.yaml
@@ -17,10 +17,13 @@ githubConfigUrl: https://github.com/FollyFactory
 
 # Name of a Secret you create yourself, holding either github_token (PAT) or
 # github_app_id / github_app_installation_id / github_app_private_key.
-githubConfigSecret: cur10-runner-github
+githubConfigSecret: mortis-farm-cur10-github
 
-# What `runs-on:` names in a workflow. Defaults to the Helm release name.
-runnerScaleSetName: cur10-runner
+# What `runs-on:` names in a workflow, and the only label the scale set answers
+# to unless scaleSetLabels below is picked up. Defaults to the Helm release name.
+# A job asks for it by this exact string: `runs-on: mortis-farm-cur10`. It cannot
+# be combined with `self-hosted` or any other label in the same runs-on.
+runnerScaleSetName: mortis-farm-cur10
 
 # Two idle pods keep the ~6GB image warm in the node's cache, so a job starts
 # without waiting on a pull.
