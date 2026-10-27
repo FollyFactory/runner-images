@@ -1,0 +1,133 @@
+name: Build ubuntu2404
+
+# Builds the Ubuntu 24.04 runner image on a native runner per architecture, runs
+# the image's own smoke test, and joins the two into one multi-arch tag.
+#
+# Hosted arm64 runners (ubuntu-24.04-arm) are free and unmetered on public
+# repos, so both architectures build natively here - no QEMU.
+#
+# GitHub disables a public repo's scheduled workflows after 60 days with no
+# repository activity. If the weekly rebuild goes quiet, re-enable it from the
+# Actions tab (or run it by hand) - the push and dispatch triggers keep working.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - images/ubuntu2404/**
+      - .github/workflows/build-ubuntu2404.yml
+  pull_request:
+    paths:
+      - images/ubuntu2404/**
+      - .github/workflows/build-ubuntu2404.yml
+  # Weekly, so apt security updates and the image's own base layers refresh
+  # without anyone touching the Dockerfile.
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+env:
+  IMAGE: ghcr.io/follyfactory/runner-images/ubuntu2404
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: Prepare
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      push: ${{ steps.tag.outputs.push }}
+    steps:
+      - id: tag
+        env:
+          EVENT: ${{ github.event_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          echo "tag=$(date -u +%Y%m%d)-${SHA:0:7}" >> "$GITHUB_OUTPUT"
+          # A pull request builds and verifies; only main, the weekly run and a
+          # manual run publish.
+          if [ "$EVENT" = pull_request ]; then
+            echo "push=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "push=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: Build ${{ matrix.arch }}
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runs-on: ubuntu-24.04
+          - arch: arm64
+            runs-on: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runs-on }}
+    permissions:
+      contents: read
+      packages: write
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
+      ARCH: ${{ matrix.arch }}
+      PUSH: ${{ needs.prepare.outputs.push }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      # The image is several GB of .NET SDKs; a stock hosted runner has to give
+      # up its own preinstalled toolchains to hold it.
+      - name: Make room
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /usr/local/share/boost /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/powershell /usr/share/swift || true
+          sudo docker image prune --all --force || true
+          df -h /
+
+      - name: Log in to ghcr.io
+        if: env.PUSH == 'true'
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      - name: Build
+        working-directory: images/ubuntu2404
+        run: docker build --tag "$IMAGE:$TAG-$ARCH" --file Dockerfile .
+
+      # The same checks anyone can run by hand with `docker run --rm <image> verify-image`.
+      - name: Verify the toolchain
+        run: docker run --rm "$IMAGE:$TAG-$ARCH" verify-image
+
+      - name: Push
+        if: env.PUSH == 'true'
+        run: docker push "$IMAGE:$TAG-$ARCH"
+
+  manifest:
+    name: Multi-arch manifest
+    needs: [prepare, build]
+    if: needs.prepare.outputs.push == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
+    steps:
+      - name: Log in to ghcr.io
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      # Both dated and latest point at the same two per-arch images, so a
+      # runner pulls the right architecture from either tag.
+      - name: Create the manifest lists
+        run: |
+          for alias in "$TAG" latest; do
+            docker buildx imagetools create --tag "$IMAGE:$alias" \
+              "$IMAGE:$TAG-amd64" "$IMAGE:$TAG-arm64"
+          done
+          docker buildx imagetools inspect "$IMAGE:$TAG"
+          echo "### Published \`$IMAGE:$TAG\` and \`$IMAGE:latest\`" >> "$GITHUB_STEP_SUMMARY"
