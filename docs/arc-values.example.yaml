@@ -1,0 +1,83 @@
+# gha-runner-scale-set values for ghcr.io/follyfactory/runner-images/ubuntu2404.
+#
+#   helm upgrade --install cur10-runner \
+#     oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set \
+#     --namespace arc-runners --create-namespace \
+#     --values arc-values.yaml
+#
+# Corrected from the working copy on 27 Oct 2026. Three fixes, each checked
+# against the chart source rather than the docs:
+#   1. the runner container must be named `runner`
+#   2. the Helm value for labels is `scaleSetLabels`, not `runnerScaleSetLabels`
+#   3. `command:` is unnecessary here, and setting it skips the image entrypoint
+# See the ARC scale set section of ../README.md for the reasoning.
+
+# Where the runners register. Org, repo or enterprise URL.
+githubConfigUrl: https://github.com/FollyFactory
+
+# Name of a Secret you create yourself, holding either github_token (PAT) or
+# github_app_id / github_app_installation_id / github_app_private_key.
+githubConfigSecret: cur10-runner-github
+
+# What `runs-on:` names in a workflow. Defaults to the Helm release name.
+runnerScaleSetName: cur10-runner
+
+# Two idle pods keep the ~6GB image warm in the node's cache, so a job starts
+# without waiting on a pull.
+minRunners: 2
+maxRunners: 4
+
+# dind, because the shared workflows shell out to docker: `docker run postgres:18`
+# in dotnet-build-test, rhysd/actionlint in tests, and docker build/push in the
+# release workflows. The sidecar shares the pod's network, so a container started
+# with --publish 5432:5432 is reachable on localhost from the job.
+containerMode:
+  type: dind
+
+# CHANGED: was `runnerScaleSetLabels`, which is the name of the field on the
+# AutoscalingRunnerSet CR, not of the Helm value that fills it. The chart's
+# values.schema.json only validates listenerConfig, so the wrong key is accepted
+# and silently dropped - the scale set would advertise no labels at all.
+scaleSetLabels:
+  - self-hosted
+  - linux
+  - dotnet
+  - node
+
+template:
+  spec:
+    # Only needed while the package is private. Delete once its visibility is
+    # public, and the nodes pull anonymously.
+    # imagePullSecrets:
+    #   - name: ghcr-pull
+
+    containers:
+      # CHANGED: was `cur10-runner`. The name is load-bearing, not cosmetic.
+      # autoscalingrunnerset.yaml hardcodes `- name: runner` and fills its body
+      # from the values container of that exact name, and both the dind wiring
+      # (DOCKER_HOST, the work volume, the externals mount) and the
+      # init-dind-externals container are gated on the same check. Under any
+      # other name the rendered runner container has no image, and yours is
+      # left as a stray sidecar with no job config.
+      - name: runner
+        image: ghcr.io/follyfactory/runner-images/ubuntu2404:latest
+
+        # REMOVED: command: ["/home/runner/run.sh"]
+        # Kubernetes `command` replaces the image's ENTRYPOINT, not its CMD.
+        # This image's entrypoint handles START_POSTGRES and then execs run.sh,
+        # so setting command skips it. Left alone, the image runs run.sh anyway.
+        # To keep both, use:
+        #   command: ["/usr/local/bin/entrypoint.sh", "/home/runner/run.sh"]
+
+        # Starting points, not measurements - tune them against a real build.
+        # A .NET restore/build/test with a Postgres container alongside wants
+        # more than the ARC defaults assume, and `_work` plus whatever dind
+        # pulls lands on the node's ephemeral storage.
+        resources:
+          requests:
+            cpu: "2"
+            memory: 4Gi
+            ephemeral-storage: 20Gi
+          limits:
+            memory: 8Gi
+            ephemeral-storage: 40Gi

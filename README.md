@@ -113,6 +113,9 @@ runner image, so volumes and the container hooks line up.
 `/home/runner/docker/index.js` are both there, and `/home/runner/externals` is
 where dind mode's init container copies from.
 
+A complete, annotated file is at
+[docs/arc-values.example.yaml](docs/arc-values.example.yaml); the short version:
+
 ```yaml
 # values.yaml for gha-runner-scale-set
 runnerScaleSetName: cur10-runner   # what `runs-on:` names
