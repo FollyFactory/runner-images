@@ -10,7 +10,8 @@
 #   1. the runner container must be named `runner`
 #   2. the Helm value for labels is `scaleSetLabels`, not `runnerScaleSetLabels`
 #   3. `command:` is unnecessary here, and setting it skips the image entrypoint
-# See the ARC scale set section of ../README.md for the reasoning.
+# See the ARC scale set section of ../README.md for the reasoning, and
+# arc-troubleshooting.md when a job sits waiting for a runner.
 
 # Where the runners register. Org, repo or enterprise URL.
 githubConfigUrl: https://github.com/FollyFactory

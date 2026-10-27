@@ -114,7 +114,9 @@ runner image, so volumes and the container hooks line up.
 where dind mode's init container copies from.
 
 A complete, annotated file is at
-[docs/arc-values.example.yaml](docs/arc-values.example.yaml); the short version:
+[docs/arc-values.example.yaml](docs/arc-values.example.yaml), and
+[docs/arc-troubleshooting.md](docs/arc-troubleshooting.md) covers the ways a job
+ends up waiting forever. The short version:
 
 ```yaml
 # values.yaml for gha-runner-scale-set
