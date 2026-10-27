@@ -107,26 +107,53 @@ older than the server breaks `pg_dump`.
 
 ### ARC scale set
 
-The image needs no special template: ARC's default command is
-`/home/runner/run.sh`, which is this image's default too. `runner` is uid 1001
-and the `docker` group is gid 123, as in the official runner image, so volumes
-and the container hooks line up. `/home/runner/k8s/index.js` (for
-`containerMode: kubernetes`) and `/home/runner/docker/index.js` are both there.
+`runner` is uid 1001 and the `docker` group is gid 123, as in the official
+runner image, so volumes and the container hooks line up.
+`/home/runner/k8s/index.js` (for `containerMode: kubernetes`) and
+`/home/runner/docker/index.js` are both there, and `/home/runner/externals` is
+where dind mode's init container copies from.
 
 ```yaml
 # values.yaml for gha-runner-scale-set
+runnerScaleSetName: cur10-runner   # what `runs-on:` names
+minRunners: 2
+maxRunners: 4
+
+containerMode:
+  type: dind
+
+# The chart's key is scaleSetLabels; it renders into the CR's
+# runnerScaleSetLabels field. Putting the CR's name here does nothing.
+scaleSetLabels:
+  - self-hosted
+  - linux
+  - dotnet
+  - node
+
 template:
   spec:
     containers:
+      # The name MUST be `runner`. The chart only merges dind wiring - DOCKER_HOST,
+      # the work volume, the externals mount - into a container with that exact
+      # name, and hardcodes `- name: runner` in the rendered pod. Any other name
+      # renders that container with no image and leaves yours as a stray sidecar.
       - name: runner
         image: ghcr.io/follyfactory/runner-images/ubuntu2404:latest
-        command: ["/home/runner/run.sh"]
 ```
+
+No `command:` is needed, and setting one costs you something: Kubernetes
+`command` replaces the image's ENTRYPOINT, not its CMD, so
+`command: ["/home/runner/run.sh"]` skips this image's entrypoint and with it
+`START_POSTGRES`. Left alone, the image already runs `run.sh`. If you want both,
+spell it out: `command: ["/usr/local/bin/entrypoint.sh", "/home/runner/run.sh"]`.
 
 Workflows that run `docker` commands need `containerMode: dind`. The dind
 sidecar shares the pod's network, so a container started with
 `--publish 5432:5432` is reachable on `localhost` from the job, which is what
 the shared workflows assume.
+
+While the package is private, the pods also need an `imagePullSecrets` entry
+under `template.spec`; making it public removes that.
 
 ### Standalone
 
